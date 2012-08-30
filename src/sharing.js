@@ -315,7 +315,7 @@ const SharingDialog = new Lang.Class({
 
          let newContact = this._getNewContact();
          accessRule.set_role(newContact.role);
-         accessRule.set_scope(GData.ACCESS_SCOPE_DEFAULT, null);
+         accessRule.set_scope(GData.ACCESS_SCOPE_USER, GData.ACCESS_SCOPE_DEFAULT);GData.ACCESS_SCOPE_DEFAULT, null);
 
          let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
 
