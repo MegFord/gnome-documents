@@ -206,12 +206,12 @@ const SharingDialog = new Lang.Class({
                                        margin_bottom: 12 });
 
         this.button1 = new Gtk.RadioButton ({ label: _("Shared with link") }); //Label for radiobutton that sets doc permission to shared
-        this.button1.set_active (false);
+        this.button1.set_active (true);//#TODO: read this from the acl and set correct button as active
         popUpGrid.attach(this.button1, 0, 2, 1, 1);
 
         this.button2 =  new Gtk.RadioButton({ label: _("Private"),  //Label for radiobutton that sets doc permission to private
                                               group: this.button1 });
-        this.button2.set_active (true);
+        this.button2.set_active (false);
         popUpGrid.attach(this.button2, 0, 3, 1, 1);
 
         this.button3 = new Gtk.RadioButton({ label: _("Public"), //Label for radiobutton that sets doc permission to public
@@ -221,7 +221,7 @@ const SharingDialog = new Lang.Class({
         this._close = new Gtk.Button({ label: _("Done") });//Label for Done button permissions popup window
         this._close.connect('clicked', Lang.bind(this,
             function() {
-                this._setDocumentPermission();
+                this._sendNewDocumentRule();
                 this.popUpWindow.destroy();
             }));
 
@@ -305,7 +305,7 @@ const SharingDialog = new Lang.Class({
         return '';
     },
 
-    //this isn't finished
+    //Send the new contact and its permissions to Google Docs
      _onAddClicked: function() {
          let source = Global.sourceManager.getItemById(this.resourceUrn);
 
@@ -315,7 +315,7 @@ const SharingDialog = new Lang.Class({
 
          let newContact = this._getNewContact();
          accessRule.set_role(newContact.role);
-         accessRule.set_scope(GData.ACCESS_SCOPE_USER, newContact.name);
+         accessRule.set_scope(GData.ACCESS_SCOPE_DEFAULT, null);
 
          let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
 
@@ -326,10 +326,42 @@ const SharingDialog = new Lang.Class({
                          let insertedAccessRule = service.insert_entry_finish(res);
                      } catch(e) {
                          log("Error inserting new ACL rule " + e.message);
-		     }
+		     				}
                  }));
     },
+    
+    _sendNewDocumentRule: function() {   	        
+        let source = Global.sourceManager.getItemById(this.resourceUrn);
 
+        let authorizer = new GData.GoaAuthorizer({ goa_object: source.object });
+        let service = new GData.DocumentsService({ authorizer: authorizer });
+        let accessRule = new GData.AccessRule();
+        
+       // let docAccessRule = this._getDocumentPermission();
+      
+        let activeItem = this.button1.get_active();
+               
+        if (activeItem == this.button2) 
+        		accessRule.scope_value = GData.ACCESS_SCOPE_NONE;
+        else if (activeItem == this.button3)
+        		accessRule.scope_value = GData.ACCESS_SCOPE_DEFAULT; 
+        		
+        accessRule.set_scope(GData.ACCESS_SCOPE_USER, accessRule.scope_value);
+        
+        let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
+
+         service.insert_entry_async(service.get_primary_authorization_domain(),
+             aclLink.get_uri(), accessRule, null, Lang.bind(this,
+                 function(service, res) {
+                     try {
+                         let insertedAccessRule = service.insert_entry_finish(res);
+                     } catch(e) {
+                         log("Error inserting new ACL scope for document" + e.message);
+		     				}
+                 }));
+    },
+    
+	//Get the role for the new contact from the combobox
     _getNewContact: function() {
         let activeItem = this._comboBoxText.get_active();
         let newContact = { name: this._addContact.get_text() };
@@ -342,9 +374,17 @@ const SharingDialog = new Lang.Class({
         return newContact;
     },
 
-    _setDocumentPermission: function() {
-        log('TODO: not implemented');
-    },
+ /*   _getDocumentPermission: function() {
+        log('TODO: not implemented'); 
+        let activeItem = this.button1.get_active();
+               
+        if (activeItem == this.button2) 
+        		docAccessRule.scope_value = GData.ACCESS_SCOPE_NONE;
+        else if (activeItem == this.button3)
+        		docAccessRule.scope_value = GData.ACCESS_SCOPE_DEFAULT; 
+        
+        return docAccessRule;              
+    },*/
 
  /* There is no API for this
       _prepareEmail: function() {
