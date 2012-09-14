@@ -205,11 +205,11 @@ const SharingDialog = new Lang.Class({
                                        margin_right: 24,
                                        margin_bottom: 12 });
 
-        this.button1 = new Gtk.RadioButton ({ label: _("Shared with link") }); //Label for radiobutton that sets doc permission to shared
+       this.button1 = new Gtk.RadioButton ({ label: _("Shared with link") }); //Label for radiobutton that sets doc permission to shared
 
-        this.button1.set_active (true);//#TODO: read this from the acl and set correct button as active
+        this.button1.set_active(true);//#TODO: read this from the acl and set correct button as active
         popUpGrid.attach(this.button1, 0, 2, 1, 1);
-
+        //#TODO: read this from the acl and set correct button as active
         this.button2 =  new Gtk.RadioButton({ label: _("Private"),  //Label for radiobutton that sets doc permission to private
                                               group: this.button1 });
         this.button2.set_active (false);
@@ -219,10 +219,18 @@ const SharingDialog = new Lang.Class({
                                              group: this.button1 });
         popUpGrid.attach(this.button3, 0, 4, 1, 1);
 
+        this._comboBoxDoc = new Gtk.ComboBoxText({ sensitive: true });//set this to false and add condition that radiobutton is set first
+        let combo = [_("Can edit"), _("Can view") ]; //Permission setting labels in combobox
+        for (let i = 0; i < combo.length; i++)
+            this._comboBoxDoc.append_text(combo[i]);
+
+        this._comboBoxDoc.set_active(0);
+        popUpGrid.attach(this._comboBoxDoc, 0, 5, 1, 1);
+
         this._close = new Gtk.Button({ label: _("Done") });//Label for Done button permissions popup window
         this._close.connect('clicked', Lang.bind(this,
             function() {
-                this._setDocumentPermission();
+                this._sendNewDocumentRule();
                 this.popUpWindow.destroy();
             }));
 
@@ -316,7 +324,6 @@ const SharingDialog = new Lang.Class({
 
          let newContact = this._getNewContact();
          accessRule.set_role(newContact.role);
-         accessRule.set_scope(GData.ACCESS_SCOPE_USER, GData.ACCESS_SCOPE_DEFAULT);
          accessRule.set_scope(GData.ACCESS_SCOPE_USER, newContact.name);
 
          let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
@@ -339,16 +346,22 @@ const SharingDialog = new Lang.Class({
         let service = new GData.DocumentsService({ authorizer: authorizer });
         let accessRule = new GData.AccessRule();
         
-       // let docAccessRule = this._getDocumentPermission();
+      //  let docAccessRule = this._getDocumentPermission();
       
         let activeItem = this.button1.get_active();
                
-        if (activeItem == this.button2) 
-        		accessRule.scope_value = GData.ACCESS_SCOPE_NONE;
-        else if (activeItem == this.button3)
-        		accessRule.scope_value = GData.ACCESS_SCOPE_DEFAULT; 
-        		
-        accessRule.set_scope(GData.ACCESS_SCOPE_USER, accessRule.scope_value);
+        if (activeItem == this.button2){
+                log(2); 
+        		accessRule.scope_value = GData.ACCESS_SCOPE_NONE;//does this set permission to private? 
+                //set scope type accordingly
+        }
+        else if (activeItem == this.button3){
+                log(3);
+        		accessRule.scope_value = GData.ACCESS_SCOPE_DEFAULT;
+                //set scope type to null 
+        }
+        accessRule.set_role(GData.DOCUMENTS_ACCESS_ROLE_READER);//read active item from comboboxdoc and set it here		
+        accessRule.set_scope(GData.ACCESS_SCOPE_DEFAULT, null);//(accessRule.scope_value, null);//read scope value + type from radiobuttons
         
         let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
 
@@ -377,7 +390,6 @@ const SharingDialog = new Lang.Class({
     },
 
  /*   _getDocumentPermission: function() {
-        log('TODO: not implemented'); 
         let activeItem = this.button1.get_active();
                
         if (activeItem == this.button2) 

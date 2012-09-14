@@ -793,7 +793,7 @@ const SelectionToolbar = new Lang.Class({
         this._toolbarProperties.connect('clicked', Lang.bind(this, this._onToolbarProperties));
 
         // share button
-	this._toolbarShare = new Gtk.Button({ child: new Gtk.Image ({ icon_name: 'emblem-shared-symbolic',
+	    this._toolbarShare = new Gtk.Button({ child: new Gtk.Image ({ icon_name: 'emblem-shared-symbolic',
                                                                       pixel_size: 16 })});
         this._toolbarShare.set_tooltip_text(_("Share"));
         this._rightBox.add(this._toolbarShare);
