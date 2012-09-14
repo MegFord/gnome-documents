@@ -206,6 +206,7 @@ const SharingDialog = new Lang.Class({
                                        margin_bottom: 12 });
 
         this.button1 = new Gtk.RadioButton ({ label: _("Shared with link") }); //Label for radiobutton that sets doc permission to shared
+
         this.button1.set_active (true);//#TODO: read this from the acl and set correct button as active
         popUpGrid.attach(this.button1, 0, 2, 1, 1);
 
@@ -221,7 +222,7 @@ const SharingDialog = new Lang.Class({
         this._close = new Gtk.Button({ label: _("Done") });//Label for Done button permissions popup window
         this._close.connect('clicked', Lang.bind(this,
             function() {
-                this._sendNewDocumentRule();
+                this._setDocumentPermission();
                 this.popUpWindow.destroy();
             }));
 
@@ -316,6 +317,7 @@ const SharingDialog = new Lang.Class({
          let newContact = this._getNewContact();
          accessRule.set_role(newContact.role);
          accessRule.set_scope(GData.ACCESS_SCOPE_USER, GData.ACCESS_SCOPE_DEFAULT);
+         accessRule.set_scope(GData.ACCESS_SCOPE_USER, newContact.name);
 
          let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
 

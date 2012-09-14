@@ -319,6 +319,7 @@ msgid "Yesterday"
 msgstr "Wczoraj"
 
 #: ../src/view.js:285
+
 #, c-format
 msgid "%d day ago"
 msgid_plural "%d days ago"
@@ -409,3 +410,4 @@ msgstr "Zaznacz wszystkie"
 #: ../src/resources/selection-menu.ui.h:2
 msgid "Select None"
 msgstr "Odznacz wszystkie"
+
