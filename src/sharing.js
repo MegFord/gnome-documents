@@ -205,19 +205,16 @@ const SharingDialog = new Lang.Class({
                                        margin_right: 24,
                                        margin_bottom: 12 });
 
-       this.button1 = new Gtk.RadioButton ({ label: _("Shared with link") }); //Label for radiobutton that sets doc permission to shared
+        this.button1 = new Gtk.RadioButton ({ label: _("Shared with link")}); //Label for radiobutton that sets doc permission to shared
 
-        this.button1.set_active(true);//#TODO: read this from the acl and set correct button as active
         popUpGrid.attach(this.button1, 0, 2, 1, 1);
-        //#TODO: read this from the acl and set correct button as active
-        this.button2 =  new Gtk.RadioButton({ label: _("Private"),  //Label for radiobutton that sets doc permission to private
+        this.button2 =  new Gtk.RadioButton({ label: _("Public"),  //Label for radiobutton that sets doc permission to public
                                               group: this.button1 });
-        this.button2.set_active (false);
         popUpGrid.attach(this.button2, 0, 3, 1, 1);
 
-        this.button3 = new Gtk.RadioButton({ label: _("Public"), //Label for radiobutton that sets doc permission to public
-                                             group: this.button1 });
-        popUpGrid.attach(this.button3, 0, 4, 1, 1);
+       // this.button3 = new Gtk.RadioButton({ label: _("Public"), //Label for radiobutton that sets doc permission to public
+                                            // group: this.button1 });
+       // popUpGrid.attach(this.button3, 0, 4, 1, 1);
 
         this._comboBoxDoc = new Gtk.ComboBoxText({ sensitive: true });//set this to false and add condition that radiobutton is set first
         let combo = [_("Can edit"), _("Can view") ]; //Permission setting labels in combobox
@@ -346,22 +343,12 @@ const SharingDialog = new Lang.Class({
         let service = new GData.DocumentsService({ authorizer: authorizer });
         let accessRule = new GData.AccessRule();
         
-      //  let docAccessRule = this._getDocumentPermission();
-      
-        let activeItem = this.button1.get_active();
-               
-        if (activeItem == this.button2){
-                log(2); 
-        		accessRule.scope_value = GData.ACCESS_SCOPE_NONE;//does this set permission to private? 
-                //set scope type accordingly
-        }
-        else if (activeItem == this.button3){
-                log(3);
-        		accessRule.scope_value = GData.ACCESS_SCOPE_DEFAULT;
-                //set scope type to null 
-        }
-        accessRule.set_role(GData.DOCUMENTS_ACCESS_ROLE_READER);//read active item from comboboxdoc and set it here		
-        accessRule.set_scope(GData.ACCESS_SCOPE_DEFAULT, null);//(accessRule.scope_value, null);//read scope value + type from radiobuttons
+ 
+        let docAccessRule = this._getDocumentPermission();
+        let newDocRole = this._getDocumentRole();      
+
+        accessRule.set_role( newDocRole);//read active item from comboboxdoc and set it here		
+        accessRule.set_scope(docAccessRule, null);
         
         let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
 
@@ -389,16 +376,26 @@ const SharingDialog = new Lang.Class({
         return newContact;
     },
 
- /*   _getDocumentPermission: function() {
-        let activeItem = this.button1.get_active();
-               
-        if (activeItem == this.button2) 
-        		docAccessRule.scope_value = GData.ACCESS_SCOPE_NONE;
-        else if (activeItem == this.button3)
-        		docAccessRule.scope_value = GData.ACCESS_SCOPE_DEFAULT; 
+    _getDocumentPermission: function() {
+        let docAccessRule = null;      
+        if (this.button1.get_active()) 
+        	docAccessRule = GData.ACCESS_SCOPE_USER;
+        else if (this.button2.get_active())
+        	docAccessRule = GData.ACCESS_SCOPE_DEFAULT; 
         
-        return docAccessRule;              
-    },*/
+        return docAccessRule;//this name should be newDocScope              
+    },
+
+    _getDocumentRole: function() {
+        let activeItem = this._comboBoxDoc.get_active();
+        let newDocRole = null;
+        if (activeItem == 0)
+            newDocRole = GData.DOCUMENTS_ACCESS_ROLE_WRITER;
+        else if (activeItem == 1)
+            newDocRole = GData.DOCUMENTS_ACCESS_ROLE_READER;
+
+        return newDocRole;
+    },
 
  /* There is no API for this
       _prepareEmail: function() {
