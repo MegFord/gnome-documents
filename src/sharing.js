@@ -60,6 +60,8 @@ const SharingDialog = new Lang.Class({
         this.resourceUrn = doc.resourceUrn;
 
         this.entry = null;
+        let docPublic = false;
+        let changed = false;//this is a dumb hack -- I don't know how to check that the state of the radiobuttons have changed in GTK
         this._createGDataEntry();
 
         let toplevel = Global.application.get_windows()[0];
@@ -73,7 +75,7 @@ const SharingDialog = new Lang.Class({
                                        margin_top: 5,
                                        title: _("Sharing Settings"),
                                        hexpand: true });
-        this.widget.add_button(_("Done"), Gtk.ResponseType.OK);  //Label for Done button in Sharing dialog
+        this.widget.add_button(_("Done"), Gtk.ResponseType.OK);  // Label for Done button in Sharing dialog
 
         let grid = new Gtk.Grid({ orientation: Gtk.Orientation.VERTICAL,
                                   column_spacing: 6,
@@ -105,21 +107,22 @@ const SharingDialog = new Lang.Class({
         this._viewCol = new Gtk.TreeViewColumn();
         this.tree.append_column(this._viewCol);
 
-        // name column
+        // Name column
         this._rendererText = new Gtk.CellRendererText({ xpad: 6,
                                                         ypad: 4 });
         this._viewCol.pack_start(this._rendererText, true);
         this._viewCol.add_attribute(this._rendererText,
                                     'text', SharingDialogColumns.NAME);
 
-        // role column
+        // Role column
         this._rendererDetail = new GdPrivate.StyledTextRenderer({ xpad: 16 });
         this._rendererDetail.add_class('dim-label');
         this._viewCol.pack_start(this._rendererDetail, false);
         this._viewCol.add_attribute(this._rendererDetail,
                                     'text', SharingDialogColumns.ROLE);
 
-        this._docSharing = new Gtk.Label ({ label: '<b>' + _("Document permissions") + '</b>', //Label for widget group used for adding new contacts
+        this._docSharing = new Gtk.Label ({ label: '<b>' + _("Document permissions") + '</b>', 
+                                            // Label for widget group used for adding new contacts
                                             halign: Gtk.Align.START,
                                             use_markup: true,
                                             hexpand: false });
@@ -127,22 +130,22 @@ const SharingDialog = new Lang.Class({
         grid.add(this._docSharing);
         rows++;
 
-        if(doc.shared)
-            this._permissionLabel = _("Shared"); //label for shared permission setting
+        if(doc.shared || this.docPublic)//use check instead of this
+            this._permissionLabel = _("Shared"); // Label for shared permission setting
         else
-            this._permissionLabel = _("Private"); //label for private permission setting
+            this._permissionLabel = _("Private"); // Label for private permission setting
         this._setting = new Gtk.Label({ label: _(this._permissionLabel),
                                         halign: Gtk.Align.START,
                                         hexpand: false });
         grid.add(this._setting);
 
-        this._changePermission = new Gtk.Button({ label: _("Change"), //Label for permission change in Sharing dialog
+        this._changePermission = new Gtk.Button({ label: _("Change"), // Label for permission change in Sharing dialog
                                                   halign: Gtk.Align.START });
         this._changePermission.connect("clicked", Lang.bind(this, this._permissionPopUp));
         grid.attach(this._changePermission, 2, rows, 1, 1);
         rows++;
 
-        this._add = new Gtk.Label ({ label: '<b>' +  _("Add people") + '</b>', //Label for widget group used for adding new contacts
+        this._add = new Gtk.Label ({ label: '<b>' +  _("Add people") + '</b>', // Label for widget group used for adding new contacts
                                      halign: Gtk.Align.START,
                                      use_markup: true,
                                      hexpand: false });
@@ -150,7 +153,7 @@ const SharingDialog = new Lang.Class({
         grid.add(this._add);
         rows++;
 
-        this._addContact = new Gtk.Entry({ placeholder_text: _("Enter an email address"), //Editable text in entry field
+        this._addContact = new Gtk.Entry({ placeholder_text: _("Enter an email address"), // Editable text in entry field
                                            editable: true,
                                            hexpand: true,
                                            halign: Gtk.Align.START });
@@ -163,7 +166,7 @@ const SharingDialog = new Lang.Class({
         grid.add(this._addContact);
 
         this._comboBoxText = new Gtk.ComboBoxText({ sensitive: false });
-        let combo = [_("Can edit"), _("Can view") ]; //Permission setting labels in combobox
+        let combo = [_("Can edit"), _("Can view") ]; // Permission setting labels in combobox
         for (let i = 0; i < combo.length; i++)
             this._comboBoxText.append_text(combo[i]);
 
@@ -171,7 +174,7 @@ const SharingDialog = new Lang.Class({
         grid.attach_next_to(this._comboBoxText, this._addContact, 1, 1, 1);
 
       /* There is no API for this
-        this._notify = new Gtk.CheckButton({ label: _("Notify contact via gmail") }); //Label for checkbutton
+        this._notify = new Gtk.CheckButton({ label: _("Notify contact via gmail") }); // Label for checkbutton
         grid.add(this._notify);
         this._notify.set_active(false);
         //send an email with link to document via Google
@@ -205,47 +208,44 @@ const SharingDialog = new Lang.Class({
                                        margin_right: 24,
                                        margin_bottom: 12 });
 
-        this.button1 = new Gtk.RadioButton ({ label: _("Shared with link")}); //Label for radiobutton that sets doc permission to shared
-
+        this.button1 = new Gtk.RadioButton ({ label: _("Shared with link")}); 
+        // Label for radiobutton that sets doc permission to shared
         popUpGrid.attach(this.button1, 0, 2, 1, 1);
-        this.button2 =  new Gtk.RadioButton({ label: _("Public"),  //Label for radiobutton that sets doc permission to public
+        this.button2 =  new Gtk.RadioButton({ label: _("Public"),  // Label for radiobutton that sets doc permission to public
                                               group: this.button1 });
+        this.button1.connect('clicked', Lang.bind (this, this._setDoc));
+        if(this.docPublic)
+            this.button2.set_active(true);
+        this.button2.connect('clicked', Lang.bind (this, this._setDoc));
         popUpGrid.attach(this.button2, 0, 3, 1, 1);
 
-       // this.button3 = new Gtk.RadioButton({ label: _("Public"), //Label for radiobutton that sets doc permission to public
-                                            // group: this.button1 });
-       // popUpGrid.attach(this.button3, 0, 4, 1, 1);
+        this._check = new Gtk.CheckButton({ label: _("Can edit")});//set this to false and add condition that radiobutton is set first
+        this._check.set_active(false);
+        this._check.connect ("toggled", Lang.bind (this, this._setDocumentRole));
+        popUpGrid.attach(this._check, 0, 5, 1, 1);
 
-        this._comboBoxDoc = new Gtk.ComboBoxText({ sensitive: true });//set this to false and add condition that radiobutton is set first
-        let combo = [_("Can edit"), _("Can view") ]; //Permission setting labels in combobox
-        for (let i = 0; i < combo.length; i++)
-            this._comboBoxDoc.append_text(combo[i]);
-
-        this._comboBoxDoc.set_active(0);
-        popUpGrid.attach(this._comboBoxDoc, 0, 5, 1, 1);
-
-        this._close = new Gtk.Button({ label: _("Done") });//Label for Done button permissions popup window
+        this._close = new Gtk.Button({ label: _("Done") });// Label for Done button permissions popup window
         this._close.connect('clicked', Lang.bind(this,
             function() {
                 this._sendNewDocumentRule();
                 this.popUpWindow.destroy();
             }));
 
-        popUpGrid.add(this._close);
+        popUpGrid.attach(this._close, 0, 6, 1, 1);
 
         let popUpContentArea = this.popUpWindow.get_content_area();
         popUpContentArea.pack_start(popUpGrid, true, true, 2);
         this.popUpWindow.show_all();
     },
 
-    //Get the id of the selected doc from the sourceManager, give auth info to Google, and start the service
+    // Get the id of the selected doc from the sourceManager, give auth info to Google, and start the service
     _createGDataEntry: function() {
         let source = Global.sourceManager.getItemById(this.resourceUrn);
 
         let authorizer = new GData.GoaAuthorizer({ goa_object: source.object });
         let service = new GData.DocumentsService({ authorizer: authorizer });
 
-        //query the service for the entry related to the doc
+        // Query the service for the entry related to the doc
         service.query_single_entry_async
             (service.get_primary_authorization_domain(),
             this.identifier, null,
@@ -260,7 +260,7 @@ const SharingDialog = new Lang.Class({
                 }));
     },
 
-   //return a feed containing the acl related to the entry
+   // Return a feed containing the acl related to the entry
     _getGDataEntryRules: function(entry, service) {
          this.entry.get_rules_async(service, null, null, Lang.bind(this,
              function(entry, result) {
@@ -273,20 +273,23 @@ const SharingDialog = new Lang.Class({
              }));
     },
 
-     //get each entry (person) from the feed, and get the scope for each person, and then store the emails and values in an array
+     // Get each entry (person) from the feed, and get the scope for each person, and then store the emails and values in an array
      _getScopeRulesEntry: function(feed) {
          let entries = feed.get_entries();
+         let testValues = [];
          let values = [];
 
          entries.forEach(Lang.bind(this,
              function(entry) {
-                 let [type, value] = entry.get_scope();
-                 let role = entry.get_role();
-
-                 values.push({ name: value, role: this._getUserRoleString(role) });
+                let [type, value] = entry.get_scope();
+                let role = entry.get_role();
+                 if(value != null) {
+                    this.docPublic = true;
+                    values.push({ name: value, role: this._getUserRoleString(role) });
+                 }
              }));
 
-         // set values in the treemodel
+         // Set values in the treemodel
          values.forEach(Lang.bind (this,
              function(value) {
                  let iter = this.model.append();
@@ -297,7 +300,7 @@ const SharingDialog = new Lang.Class({
          }));
     },
 
-    //get the roles, and make a new array containing strings
+    // Get the roles, and make a new array containing strings
     _getUserRoleString: function(role) {
         if(role.charAt(0) == 'o')
             return _("Owner");
@@ -311,7 +314,7 @@ const SharingDialog = new Lang.Class({
         return '';
     },
 
-    //Send the new contact and its permissions to Google Docs
+    // Send the new contact and its permissions to Google Docs
      _onAddClicked: function() {
          let source = Global.sourceManager.getItemById(this.resourceUrn);
 
@@ -332,38 +335,40 @@ const SharingDialog = new Lang.Class({
                          let insertedAccessRule = service.insert_entry_finish(res);
                      } catch(e) {
                          log("Error inserting new ACL rule " + e.message);
-		     				}
-                 }));
+		     		 }
+          }));
     },
-    
-    _sendNewDocumentRule: function() {   	        
-        let source = Global.sourceManager.getItemById(this.resourceUrn);
 
-        let authorizer = new GData.GoaAuthorizer({ goa_object: source.object });
-        let service = new GData.DocumentsService({ authorizer: authorizer });
-        let accessRule = new GData.AccessRule();
+        _sendNewDocumentRule: function() { 
+            if(this.docPublic) {  	        
+                let source = Global.sourceManager.getItemById(this.resourceUrn);
+
+                let authorizer = new GData.GoaAuthorizer({ goa_object: source.object });
+                let service = new GData.DocumentsService({ authorizer: authorizer });
+                let accessRule = new GData.AccessRule();
         
  
-        let docAccessRule = this._getDocumentPermission();
-        let newDocRole = this._getDocumentRole();      
+                let docAccessRule = this._getDocumentPermission();
+                let newDocRole = this._getDocumentRole();      
 
-        accessRule.set_role( newDocRole);//read active item from comboboxdoc and set it here		
-        accessRule.set_scope(docAccessRule, null);
+                accessRule.set_role(newDocRole);// Read active item from comboboxdoc and set it here		
+                accessRule.set_scope(docAccessRule, null);
         
-        let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
+                let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
 
-         service.insert_entry_async(service.get_primary_authorization_domain(),
-             aclLink.get_uri(), accessRule, null, Lang.bind(this,
-                 function(service, res) {
-                     try {
-                         let insertedAccessRule = service.insert_entry_finish(res);
-                     } catch(e) {
-                         log("Error inserting new ACL scope for document" + e.message);
-		     				}
+                service.insert_entry_async(service.get_primary_authorization_domain(),
+                aclLink.get_uri(), accessRule, null, Lang.bind(this,
+                    function(service, res) {
+                        try {
+                            let insertedAccessRule = service.insert_entry_finish(res);
+                        } catch(e) {
+                            log("Error inserting new ACL scope for document" + e.message);
+		     			}
                  }));
+           }     
     },
-    
-	//Get the role for the new contact from the combobox
+
+	// Get the role for the new contact from the combobox
     _getNewContact: function() {
         let activeItem = this._comboBoxText.get_active();
         let newContact = { name: this._addContact.get_text() };
@@ -377,32 +382,32 @@ const SharingDialog = new Lang.Class({
     },
 
     _getDocumentPermission: function() {
-        let docAccessRule = null;      
+        let docAccRule = null;      
         if (this.button1.get_active()) 
-        	docAccessRule = GData.ACCESS_SCOPE_USER;
+        	this.docAccRule = GData.ACCESS_SCOPE_USER;
         else if (this.button2.get_active())
-        	docAccessRule = GData.ACCESS_SCOPE_DEFAULT; 
+        	this.docAccRule = GData.ACCESS_SCOPE_DEFAULT; 
         
-        return docAccessRule;//this name should be newDocScope              
+        return this.docAccRule;//this name should be newDocScope              
+    },
+
+    _setDocumentRole: function() {
+        let newDocRole = null;
+        if (this._check.get_active())
+            this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_WRITER;
     },
 
     _getDocumentRole: function() {
-        let activeItem = this._comboBoxDoc.get_active();
-        let newDocRole = null;
-        if (activeItem == 0)
-            newDocRole = GData.DOCUMENTS_ACCESS_ROLE_WRITER;
-        else if (activeItem == 1)
-            newDocRole = GData.DOCUMENTS_ACCESS_ROLE_READER;
-
-        return newDocRole;
+        if(this.newDocRole == null)
+        this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_READER;
+        return this.newDocRole;
     },
 
- /* There is no API for this
-      _prepareEmail: function() {
-        if(this._notify.get_active()){
-           this.email = true;
-            log("share");
-        }
-    },
-                                    */
+    _setDoc: function() {
+       this.changed = true;
+    }
 });
+
+
+
+
