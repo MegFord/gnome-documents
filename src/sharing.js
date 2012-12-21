@@ -58,12 +58,12 @@ const SharingDialog = new Lang.Class({
 
         this.identifier = doc.identifier;
         this.resourceUrn = doc.resourceUrn;
-
+        this.feed = null;
         this.entry = null;
-        let docPublic = false;
-        let changed = false;//this is a dumb hack -- I don't know how to check that the state of the radiobuttons have changed in GTK
+        this.docPrivate = "";
+        this.pubEdit = false;
+        let newPub = false;
         this._createGDataEntry();
-
         let toplevel = Global.application.get_windows()[0];
 
         this.widget = new Gtk.Dialog({ resizable: false,
@@ -130,10 +130,7 @@ const SharingDialog = new Lang.Class({
         grid.add(this._docSharing);
         rows++;
 
-        if(doc.shared || this.docPublic)//use check instead of this
-            this._permissionLabel = _("Shared"); // Label for shared permission setting
-        else
-            this._permissionLabel = _("Private"); // Label for private permission setting
+        this._permissionLabel = _(this._getDocPrivateString()); // Label for private permission setting
         this._setting = new Gtk.Label({ label: _(this._permissionLabel),
                                         halign: Gtk.Align.START,
                                         hexpand: false });
@@ -208,25 +205,28 @@ const SharingDialog = new Lang.Class({
                                        margin_right: 24,
                                        margin_bottom: 12 });
 
-        this.button1 = new Gtk.RadioButton ({ label: _("Shared with link")}); 
-        // Label for radiobutton that sets doc permission to shared
+        this.button1 = new Gtk.RadioButton ({ label: _("Private")}); 
+        this.button1.connect('clicked', Lang.bind (this, this._setDoc));
         popUpGrid.attach(this.button1, 0, 2, 1, 1);
         this.button2 =  new Gtk.RadioButton({ label: _("Public"),  // Label for radiobutton that sets doc permission to public
-                                              group: this.button1 });
-        this.button1.connect('clicked', Lang.bind (this, this._setDoc));
-        if(this.docPublic)
-            this.button2.set_active(true);
+                                              group: this.button1 });       
         this.button2.connect('clicked', Lang.bind (this, this._setDoc));
+        if(this.docPrivate == false) {
+            this.button2.set_active(true);
+        }
         popUpGrid.attach(this.button2, 0, 3, 1, 1);
 
-        this._check = new Gtk.CheckButton({ label: _("Can edit")});//set this to false and add condition that radiobutton is set first
-        this._check.set_active(false);
+        this._check = new Gtk.CheckButton({ label: _("Can edit")});
+        if(this.pubEdit == false)
+            this._check.set_active(false);
+        else
+            this._check.set_active(true);
         this._check.connect ("toggled", Lang.bind (this, this._setDocumentRole));
         popUpGrid.attach(this._check, 0, 5, 1, 1);
 
-        this._close = new Gtk.Button({ label: _("Done") });// Label for Done button permissions popup window
+        this._close = new Gtk.Button({ label: _("Done") }); // Label for Done button permissions popup window
         this._close.connect('clicked', Lang.bind(this,
-            function() {
+            function() {             
                 this._sendNewDocumentRule();
                 this.popUpWindow.destroy();
             }));
@@ -260,33 +260,37 @@ const SharingDialog = new Lang.Class({
                 }));
     },
 
-   // Return a feed containing the acl related to the entry
+    // Return a feed containing the acl related to the entry
     _getGDataEntryRules: function(entry, service) {
-         this.entry.get_rules_async(service, null, null, Lang.bind(this,
-             function(entry, result) {
-                 try {
-                     let feed = service.query_finish(result);
-                     this._getScopeRulesEntry(feed);
-	         } catch(e) {
-                     log("Error getting ACL Feed " + e.message);
-	         }
-             }));
+        this.entry.get_rules_async(service, null, null, Lang.bind(this,
+            function(entry, result) {
+                try {
+                    this.feed = service.query_finish(result);
+                    this._getScopeRulesEntry(this.feed);
+	            } catch(e) {
+                    log("Error getting ACL Feed " + e.message);
+	            }
+         }));
     },
 
      // Get each entry (person) from the feed, and get the scope for each person, and then store the emails and values in an array
-     _getScopeRulesEntry: function(feed) {
-         let entries = feed.get_entries();
-         let testValues = [];
-         let values = [];
+    _getScopeRulesEntry: function(feed) {
+        let entries = this.feed.get_entries();
+        let testValues = [];
+        let values = [];
 
-         entries.forEach(Lang.bind(this,
-             function(entry) {
+        entries.forEach(Lang.bind(this,
+            function(entry) {
                 let [type, value] = entry.get_scope();
                 let role = entry.get_role();
-                 if(value != null) {
-                    this.docPublic = true;
-                    values.push({ name: value, role: this._getUserRoleString(role) });
-                 }
+                if(value != null) {
+                    values.push({ name: value, role: this._getUserRoleString(role) });                   
+                }
+                else if(value == null) {
+                    this.docPrivate = "public"; 
+                    if(role == 'writer')
+                        this.pubEdit = true; 
+                }
              }));
 
          // Set values in the treemodel
@@ -297,7 +301,10 @@ const SharingDialog = new Lang.Class({
                      [ SharingDialogColumns.NAME,
                        SharingDialogColumns.ROLE ],
                      [ value.name, value.role ]);
-         }));
+        }));
+
+        if(this.docPrivate == "")
+            this.docPrivate = "Private";   
     },
 
     // Get the roles, and make a new array containing strings
@@ -315,58 +322,139 @@ const SharingDialog = new Lang.Class({
     },
 
     // Send the new contact and its permissions to Google Docs
-     _onAddClicked: function() {
-         let source = Global.sourceManager.getItemById(this.resourceUrn);
+    _onAddClicked: function() {
+        if(this._isValidEmail()) {
+            let source = Global.sourceManager.getItemById(this.resourceUrn);
 
-         let authorizer = new GData.GoaAuthorizer({ goa_object: source.object });
-         let service = new GData.DocumentsService({ authorizer: authorizer });
-         let accessRule = new GData.AccessRule();
+            let authorizer = new GData.GoaAuthorizer({ goa_object: source.object });
+            let service = new GData.DocumentsService({ authorizer: authorizer });
+            let accessRule = new GData.AccessRule();
 
-         let newContact = this._getNewContact();
-         accessRule.set_role(newContact.role);
-         accessRule.set_scope(GData.ACCESS_SCOPE_USER, newContact.name);
+            let newContact = this._getNewContact();
+            accessRule.set_role(newContact.role);
+            accessRule.set_scope(GData.ACCESS_SCOPE_USER, newContact.name);
 
-         let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
+            let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
 
-         service.insert_entry_async(service.get_primary_authorization_domain(),
-             aclLink.get_uri(), accessRule, null, Lang.bind(this,
-                 function(service, res) {
-                     try {
-                         let insertedAccessRule = service.insert_entry_finish(res);
-                     } catch(e) {
-                         log("Error inserting new ACL rule " + e.message);
-		     		 }
-          }));
-    },
-
-        _sendNewDocumentRule: function() { 
-            if(this.docPublic) {  	        
-                let source = Global.sourceManager.getItemById(this.resourceUrn);
-
-                let authorizer = new GData.GoaAuthorizer({ goa_object: source.object });
-                let service = new GData.DocumentsService({ authorizer: authorizer });
-                let accessRule = new GData.AccessRule();
-        
- 
-                let docAccessRule = this._getDocumentPermission();
-                let newDocRole = this._getDocumentRole();      
-
-                accessRule.set_role(newDocRole);// Read active item from comboboxdoc and set it here		
-                accessRule.set_scope(docAccessRule, null);
-        
-                let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
-
-                service.insert_entry_async(service.get_primary_authorization_domain(),
+            service.insert_entry_async(service.get_primary_authorization_domain(),
                 aclLink.get_uri(), accessRule, null, Lang.bind(this,
                     function(service, res) {
                         try {
                             let insertedAccessRule = service.insert_entry_finish(res);
                         } catch(e) {
-                            log("Error inserting new ACL scope for document" + e.message);
-		     			}
-                 }));
-           }     
+                            log("Error inserting new ACL rule " + e.message);
+		         		}
+                    }));
+        }
+        else {
+           this._showErrorDialog(); 
+        }
     },
+
+    _sendNewDocumentRule: function() {
+ 	        
+            let source = Global.sourceManager.getItemById(this.resourceUrn);
+
+            let authorizer = new GData.GoaAuthorizer({ goa_object: source.object });
+            let service = new GData.DocumentsService({ authorizer: authorizer });
+
+            let docAccessRule = this._getDocumentPermission();
+            log(docAccessRule);
+            let newDocRole = this._getDocumentRole();
+            let entries = this.feed.get_entries();
+            let values = [];
+            let count = 0;
+            let arrIndex = 0;
+            let flag = "";
+                entries.forEach(Lang.bind(this,
+                    function(individualEntry) {
+                        let [type, value] = individualEntry.get_scope();
+                        log('type'); 
+                        log(type);
+                        log('value');
+                        log(value);
+                        let role = individualEntry.get_role();
+                        log('role');
+                        log(role);
+                        if(type == "default") {
+                            arrIndex = count;
+                            if(docAccessRule == GData.ACCESS_SCOPE_USER)
+                                flag = "deletePub";
+                            else if(newDocRole != role)
+                                 flag = "changePub";
+                            
+                        }
+                        count++;  
+                }));
+            if(flag == "" && docAccessRule == GData.ACCESS_SCOPE_DEFAULT)
+                flag = "addPub";
+            log(flag); 
+            if(flag != '') {
+      
+                if(flag == "addPub") { 
+                // If we are making the doc public, send a new permission
+                    let accessRule = new GData.AccessRule();
+                    let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
+
+                    accessRule.set_scope(docAccessRule, null);
+                    accessRule.set_role(newDocRole);
+                    service.insert_entry_async(service.get_primary_authorization_domain(),
+                        aclLink.get_uri(), accessRule, null, Lang.bind(this,
+                            function(service, res) {
+                                try {
+                                    let insertedAccessRule = service.insert_entry_finish(res);
+                                } catch(e) {
+                                    log("Error inserting new ACL scope for document" + e.message);
+		         			    }
+                        }));
+                }
+             
+                if(flag == "changePub") { 
+                // If we are changing the role, update the entry              
+                    let accessRule = entries[arrIndex];//works
+                        log(accessRule.role);
+                        accessRule.set_role(newDocRole);
+                        service.update_entry_async(service.get_primary_authorization_domain(), 
+                            accessRule, null, Lang.bind(this,
+                                function(service, res) {
+                                    try {
+                                        let updatedAccessRule = service.update_entry_finish(res);
+                                    } catch(e) {
+                                        log("Error updating ACL scope for document" + e.message);
+		         			        }
+                        }));
+                }
+                      
+                if(flag == "deletePub") { 
+                // If we are changing the permission to private, delete the public entry.
+                    let accessRule = entries[arrIndex];
+                    service.delete_entry_async(service.get_primary_authorization_domain(), // works
+                    accessRule, null, Lang.bind(this,
+                        function(service, res) {
+                            try {
+                                let afterDeletedAccessRule = service.delete_entry_finish(res);
+                            } catch(e) {
+                                log("Error deleting ACL scope for document" + e.message);
+		         			}
+                    }));
+                }
+               /* let entr = this.feed.get_entries();//weird test
+                log("test");
+                log(entr[0]);
+                let accessRule = entr[2];
+                accessRule.set_role(GData.DOCUMENTS_ACCESS_ROLE_WRITER);
+                        service.update_entry_async(service.get_primary_authorization_domain(), 
+                        accessRule, null, Lang.bind(this,
+                        function(service, res) {
+                            try {
+                                let insertedAccessRule = service.update_entry_finish(res);
+                            } catch(e) {
+                                log("Error deleting ACL scope for document" + e.message);
+		         			}
+                    }));*/
+        }    
+    },
+
 
 	// Get the role for the new contact from the combobox
     _getNewContact: function() {
@@ -383,31 +471,73 @@ const SharingDialog = new Lang.Class({
 
     _getDocumentPermission: function() {
         let docAccRule = null;      
-        if (this.button1.get_active()) 
+        if (this.button1.get_active()) {
         	this.docAccRule = GData.ACCESS_SCOPE_USER;
-        else if (this.button2.get_active())
-        	this.docAccRule = GData.ACCESS_SCOPE_DEFAULT; 
-        
+        }
+        else if (this.button2.get_active()) {
+        	this.docAccRule = GData.ACCESS_SCOPE_DEFAULT;   
+        }
+
         return this.docAccRule;//this name should be newDocScope              
     },
 
     _setDocumentRole: function() {
         let newDocRole = null;
-        if (this._check.get_active())
+        if (this._check.get_active()) {
             this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_WRITER;
+        }
+    },
+   
+    _getDocPrivateString: function() {
+        return this.docPrivate;//make label update from empty string when string is set.
     },
 
     _getDocumentRole: function() {
-        if(this.newDocRole == null)
-        this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_READER;
+        let newDocRole = null;
+            if (this._check.get_active()) 
+                this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_WRITER;
+                
+            
+            else
+                this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_READER;
+
         return this.newDocRole;
     },
 
     _setDoc: function() {
-       this.changed = true;
-    }
+        this.changed = true;
+        log(this.changed);
+    },
+    
+    _isValidEmail: function() {
+        let emailString = this._addContact.get_text();
+
+        return /^([^\x00-\x20\x22\x28\x29\x2c\x2e\x3a-\x3c\x3e\x40\x5b-\x5d\x7f-\xff]+|\x22([^\x0d\x22\x5c\x80-\xff]|\x5c[\x00-\x7f])*\x22)(\x2e([^\x00-\x20\x22\x28\x29\x2c\x2e\x3a-\x3c\x3e\x40\x5b-\x5d\x7f-\xff]+|\x22([^\x0d\x22\x5c\x80-\xff]|\x5c[\x00-\x7f])*\x22))*\x40([^\x00-\x20\x22\x28\x29\x2c\x2e\x3a-\x3c\x3e\x40\x5b-\x5d\x7f-\xff]+|\x5b([^\x0d\x5b-\x5d\x80-\xff]|\x5c[\x00-\x7f])*\x5d)(\x2e([^\x00-\x20\x22\x28\x29\x2c\x2e\x3a-\x3c\x3e\x40\x5b-\x5d\x7f-\xff]+|\x5b([^\x0d\x5b-\x5d\x80-\xff]|\x5c[\x00-\x7f])*\x5d))*$/.test(emailString);
+    },
+
+    _showErrorDialog: function () {
+        this._errorDialog = new Gtk.MessageDialog ({
+            transient_for: this.widget,
+            modal: true,
+            destroy_with_parent: true,
+            buttons: Gtk.ButtonsType.OK,
+            message_type: Gtk.MessageType.WARNING,
+            text: "Email address is not valid" });
+
+        this._errorDialog.connect ('response', Lang.bind(this, this._closeErrorDialog));
+        this._errorDialog.show();
+    },
+    
+    _closeErrorDialog: function() {
+        this._errorDialog.destroy();
+    },
+
+    _getAccountName: function() {//need to implement mtaching owner of document name against goa email address
+        let source = Global.sourceManager.getItemById(this.resourceUrn);
+
+        let authorizer = new GData.GoaAuthorizer({ goa_object: source.object });
+
+        log(authorizer);
+   }
 });
-
-
-
 
