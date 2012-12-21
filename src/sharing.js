@@ -143,11 +143,11 @@ const SharingDialog = new Lang.Class({
         grid.add(this._docSharing);
         rows++;
 
-        this._permissionLabel = this.docPrivate; // Label for private permission setting
+        this._permissionLabel = this.docPrivate; // Label for permission setting
         this._setting = new Gtk.Label({ label: _(this._permissionLabel),
                                         halign: Gtk.Align.START,
                                         hexpand: false });
-        grid.add(this._setting); // Again, I need to show this after the permission is retrieved? look @ miner files & see if there is any info to use here
+        grid.add(this._setting);
 
         this._changePermission = new Gtk.Button({ label: _("Change"), // Label for permission change in Sharing dialog
                                                   halign: Gtk.Align.START });
@@ -218,7 +218,7 @@ const SharingDialog = new Lang.Class({
                                        margin_right: 24,
                                        margin_bottom: 12 });
 
-        this.button1 = new Gtk.RadioButton ({ label: _("Private")}); 
+        this.button1 = new Gtk.RadioButton ({ label: _("Private")}); // Label for radiobutton that sets doc permission to private
         this.button1.connect('clicked', Lang.bind (this, this._setDoc));
         popUpGrid.attach(this.button1, 0, 2, 1, 1);
         this.button2 =  new Gtk.RadioButton({ label: _("Public"),  // Label for radiobutton that sets doc permission to public
@@ -300,7 +300,7 @@ const SharingDialog = new Lang.Class({
                     values.push({ name: value, role: this._getUserRoleString(role) });                   
                 }
                 else if(value == null) {
-                    this.docPrivate = "Public"; 
+                    this._setting.set_text("Public"); 
                     if(role == 'writer')
                         this.pubEdit = true; 
                 }
@@ -317,7 +317,7 @@ const SharingDialog = new Lang.Class({
         }));
         this.showTree = true;
         if(this.docPrivate == "")
-            this.docPrivate = "Private";   
+          this._setting.set_text("Private");   
     },
 
     // Get the roles, and make a new array containing strings that start with capital letters
@@ -360,7 +360,9 @@ const SharingDialog = new Lang.Class({
                             [ SharingDialogColumns.NAME,
                             SharingDialogColumns.ROLE ],
                             [ newContact.name,
-                            roleString]);//        
+                            roleString]);
+                            this._addContact.set_text("");
+                            this._addContact.set_placeholder_text("Enter an email address");       
                         } catch(e) {
                             log("Error inserting new ACL rule " + e.message);
 		         		}
