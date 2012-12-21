@@ -306,13 +306,8 @@ const SharingDialog = new Lang.Class({
         entries.forEach(Lang.bind(this,
             function(entry) {
                 let [type, value] = entry.get_scope();
-                log('type'); 
-                log(type);
-                log('value');
-                log(value);
                 let role = entry.get_role();
-                log('role');
-                log(role);
+
                 if(value != null) {
                     values.push({ name: value, role: this._getUserRoleString(role) });                   
                 }
@@ -333,6 +328,7 @@ const SharingDialog = new Lang.Class({
                        SharingDialogColumns.ROLE ],
                      [ value.name, value.role ])
             }));
+
         this.grid.attach(this.sw, 0, 0, 3, 1);
         this.sw.set_visible(false);
         this._swSpinner.destroy();
@@ -378,11 +374,13 @@ const SharingDialog = new Lang.Class({
                             let insertedAccessRule = service.insert_entry_finish(res);
                             let roleString = this._getUserRoleString(newContact.role);
                             let iter = this.model.append();
+
                             this.model.set(iter,
                             [ SharingDialogColumns.NAME,
                             SharingDialogColumns.ROLE ],
                             [ newContact.name,
                             roleString]);
+
                             this._addContact.set_text("");
                             this._addContact.set_placeholder_text("Enter an email address"); // Editable text in entry field      
                         } catch(e) {
@@ -410,16 +408,12 @@ const SharingDialog = new Lang.Class({
             let count = 0;
             let arrIndex = 0;
             let flag = "";
+
                 entries.forEach(Lang.bind(this,
                     function(individualEntry) {
                         let [type, value] = individualEntry.get_scope();
-                        log('type'); 
-                        log(type);
-                        log('value');
-                        log(value);
                         let role = individualEntry.get_role();
-                        log('role');
-                        log(role);
+
                         if(type == "default") {
                             arrIndex = count;
                             if(docAccessRule == GData.ACCESS_SCOPE_USER)
@@ -430,6 +424,7 @@ const SharingDialog = new Lang.Class({
                         }
                         count++;  
                     }));
+
             if(flag == "" && docAccessRule == GData.ACCESS_SCOPE_DEFAULT)
                 flag = "addPub";
  
@@ -455,8 +450,8 @@ const SharingDialog = new Lang.Class({
              
                 if(flag == "changePub") { 
                 // If we are changing the role, update the entry              
-                    let accessRule = entries[arrIndex];//works
-                        log(accessRule.role);
+                    let accessRule = entries[arrIndex];
+
                         accessRule.set_role(newDocRole);
                         service.update_entry_async(service.get_primary_authorization_domain(), 
                             accessRule, null, Lang.bind(this,
@@ -472,7 +467,8 @@ const SharingDialog = new Lang.Class({
                 if(flag == "deletePub") { 
                 // If we are changing the permission to private, delete the public entry.
                     let accessRule = entries[arrIndex];
-                    service.delete_entry_async(service.get_primary_authorization_domain(), // works
+
+                    service.delete_entry_async(service.get_primary_authorization_domain(), 
                     accessRule, null, Lang.bind(this,
                         function(service, res) {
                             try {
@@ -500,7 +496,8 @@ const SharingDialog = new Lang.Class({
     },
 
     _getDocumentPermission: function() {
-        let docAccRule = null;      
+        let docAccRule = null; 
+     
         if (this.button1.get_active()) {
         	this.docAccRule = GData.ACCESS_SCOPE_USER;
         }
@@ -513,6 +510,7 @@ const SharingDialog = new Lang.Class({
 
     _setDocumentRole: function() { // this function is useless, so does the checkbox have to call a function? If not remove this.
         let newDocRole = null;
+
         if (this._check.get_active()) {
             this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_WRITER;
         }
@@ -520,18 +518,18 @@ const SharingDialog = new Lang.Class({
 
     _getDocumentRole: function() {
         let newDocRole = null;
-            if (this._check.get_active()) 
-                this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_WRITER;
+
+        if (this._check.get_active()) 
+            this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_WRITER;
                            
-            else
-                this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_READER;
+        else
+            this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_READER;
 
         return this.newDocRole;
     },
 
     _setDoc: function() { //also useless
         this.changed = true;
-        log(this.changed);
     },
     
     _isValidEmail: function() { 
