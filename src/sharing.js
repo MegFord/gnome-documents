@@ -75,6 +75,7 @@ const SharingDialog = new Lang.Class({
         this.docPrivate = "";
         this.pubEdit = false;
         let newPub = false;
+        this.showTree = false;
         this._createGDataEntry();
         let toplevel = Global.application.get_windows()[0];
 
@@ -100,7 +101,7 @@ const SharingDialog = new Lang.Class({
 
         let sw = new Gtk.ScrolledWindow({ shadow_type: Gtk.ShadowType.IN,
                                           margin_bottom: 3,
-                                          hexpand: true });
+                                          hexpand: true, }); // Add with viewport so can switch from spinner to liststore. I don't know how to do this switching thing! maybe I need two functions for the building & rebuilding the UI?
         sw.set_size_request(-1, 250);
         grid.attach(sw, 0, 0, 3, 1);
         rows++;
@@ -142,11 +143,11 @@ const SharingDialog = new Lang.Class({
         grid.add(this._docSharing);
         rows++;
 
-        this._permissionLabel = this._getDocPrivateString(); // Label for private permission setting
+        this._permissionLabel = this.docPrivate; // Label for private permission setting
         this._setting = new Gtk.Label({ label: _(this._permissionLabel),
                                         halign: Gtk.Align.START,
                                         hexpand: false });
-        grid.add(this._setting);
+        grid.add(this._setting); // Again, I need to show this after the permission is retrieved? look @ miner files & see if there is any info to use here
 
         this._changePermission = new Gtk.Button({ label: _("Change"), // Label for permission change in Sharing dialog
                                                   halign: Gtk.Align.START });
@@ -223,7 +224,7 @@ const SharingDialog = new Lang.Class({
         this.button2 =  new Gtk.RadioButton({ label: _("Public"),  // Label for radiobutton that sets doc permission to public
                                               group: this.button1 });       
         this.button2.connect('clicked', Lang.bind (this, this._setDoc));
-        if(this.docPrivate == false) {
+        if(this.docPrivate == "Public") {
             this.button2.set_active(true);
         }
         popUpGrid.attach(this.button2, 0, 3, 1, 1);
@@ -299,7 +300,7 @@ const SharingDialog = new Lang.Class({
                     values.push({ name: value, role: this._getUserRoleString(role) });                   
                 }
                 else if(value == null) {
-                    this.docPrivate = "public"; 
+                    this.docPrivate = "Public"; 
                     if(role == 'writer')
                         this.pubEdit = true; 
                 }
@@ -312,23 +313,23 @@ const SharingDialog = new Lang.Class({
                  this.model.set(iter,
                      [ SharingDialogColumns.NAME,
                        SharingDialogColumns.ROLE ],
-                     [ value.name, value.role ]);
+                     [ value.name, value.role ])
         }));
-
+        this.showTree = true;
         if(this.docPrivate == "")
             this.docPrivate = "Private";   
     },
 
-    // Get the roles, and make a new array containing strings
+    // Get the roles, and make a new array containing strings that start with capital letters
     _getUserRoleString: function(role) {
         if(role.charAt(0) == 'o')
-            return _("Owner");
+            return _("Owner"); // Owner permission for document user listed in treeview
 
         if(role.charAt(0) == 'w')
-            return _("Writer");
+            return _("Writer"); // Writer permission for document user listed in treeview
 
         if(role.charAt(0) == 'r')
-            return _("Reader");
+            return _("Reader"); // Reader permission for document user listed in treeview
 
         return '';
     },
@@ -353,10 +354,18 @@ const SharingDialog = new Lang.Class({
                     function(service, res) {
                         try {
                             let insertedAccessRule = service.insert_entry_finish(res);
+                            let roleString = this._getUserRoleString(newContact.role);
+                            let iter = this.model.append();
+                            this.model.set(iter,
+                            [ SharingDialogColumns.NAME,
+                            SharingDialogColumns.ROLE ],
+                            [ newContact.name,
+                            roleString]);//        
                         } catch(e) {
                             log("Error inserting new ACL rule " + e.message);
 		         		}
                     }));
+            
         }
         else {
            this._showErrorDialog(); 
@@ -400,7 +409,7 @@ const SharingDialog = new Lang.Class({
                 }));
             if(flag == "" && docAccessRule == GData.ACCESS_SCOPE_DEFAULT)
                 flag = "addPub";
-            log(flag); 
+ 
             if(flag != '') {
       
                 if(flag == "addPub") { 
@@ -490,18 +499,18 @@ const SharingDialog = new Lang.Class({
         	this.docAccRule = GData.ACCESS_SCOPE_DEFAULT;   
         }
 
-        return this.docAccRule;//this name should be newDocScope              
+        return this.docAccRule;              
     },
 
-    _setDocumentRole: function() {
+    _setDocumentRole: function() { // this function is useless, so does the checkbox have to call a function? If not remove this.
         let newDocRole = null;
         if (this._check.get_active()) {
             this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_WRITER;
         }
     },
    
-    _getDocPrivateString: function() {
-        return this.docPrivate;//make label update from empty string when string is set.
+    _getDocPrivateString: function() {//Make this useful by replacing an empty label with a docPrivate label after the permissions get here from Google.
+        return this.docPrivate;
     },
 
     _getDocumentRole: function() {
@@ -521,9 +530,9 @@ const SharingDialog = new Lang.Class({
         log(this.changed);
     },
     
-    _isValidEmail: function() {
+    _isValidEmail: function() { 
         let emailString = this._addContact.get_text();
-
+        // Use Ross Kendell's RegEx to check for valid email address
         return /^([^\x00-\x20\x22\x28\x29\x2c\x2e\x3a-\x3c\x3e\x40\x5b-\x5d\x7f-\xff]+|\x22([^\x0d\x22\x5c\x80-\xff]|\x5c[\x00-\x7f])*\x22)(\x2e([^\x00-\x20\x22\x28\x29\x2c\x2e\x3a-\x3c\x3e\x40\x5b-\x5d\x7f-\xff]+|\x22([^\x0d\x22\x5c\x80-\xff]|\x5c[\x00-\x7f])*\x22))*\x40([^\x00-\x20\x22\x28\x29\x2c\x2e\x3a-\x3c\x3e\x40\x5b-\x5d\x7f-\xff]+|\x5b([^\x0d\x5b-\x5d\x80-\xff]|\x5c[\x00-\x7f])*\x5d)(\x2e([^\x00-\x20\x22\x28\x29\x2c\x2e\x3a-\x3c\x3e\x40\x5b-\x5d\x7f-\xff]+|\x5b([^\x0d\x5b-\x5d\x80-\xff]|\x5c[\x00-\x7f])*\x5d))*$/.test(emailString);
     },
 
@@ -534,7 +543,7 @@ const SharingDialog = new Lang.Class({
             destroy_with_parent: true,
             buttons: Gtk.ButtonsType.OK,
             message_type: Gtk.MessageType.WARNING,
-            text: "Email address is not valid" });
+            text: "Email address is not valid" }); // Text for error dialog for invalid email address entered
 
         this._errorDialog.connect ('response', Lang.bind(this, this._closeErrorDialog));
         this._errorDialog.show();
