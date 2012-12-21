@@ -1,5 +1,17 @@
 /*
  * Copyright(c) 2012 Meg Ford
+ * Except for Line 530: 
+ * JavaScript function to check an email address conforms to RFC822 (http://www.ietf.org/rfc/rfc0822.txt)
+ *
+ * Version: 0.2
+ * Author: Ross Kendall
+ * Created: 2006-12-16
+ * Updated: 2007-03-22
+ *
+ * Based on the PHP code by Cal Henderson
+ * http://iamcal.com/publish/articles/php/parsing_email/
+ * Portions copyright (C) 2006  Ross Kendall - http://rosskendall.com
+ * Portions copyright (C) 1993-2005 Cal Henderson - http://iamcal.com
  *
  * Gnome Documents is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by the
@@ -130,7 +142,7 @@ const SharingDialog = new Lang.Class({
         grid.add(this._docSharing);
         rows++;
 
-        this._permissionLabel = _(this._getDocPrivateString()); // Label for private permission setting
+        this._permissionLabel = this._getDocPrivateString(); // Label for private permission setting
         this._setting = new Gtk.Label({ label: _(this._permissionLabel),
                                         halign: Gtk.Align.START,
                                         hexpand: false });
