@@ -90,20 +90,30 @@ const SharingDialog = new Lang.Class({
                                        hexpand: true });
         this.widget.add_button(_("Done"), Gtk.ResponseType.OK);  // Label for Done button in Sharing dialog
 
-        let grid = new Gtk.Grid({ orientation: Gtk.Orientation.VERTICAL,
-                                  column_spacing: 6,
-                                  row_spacing: 6,
-                                  margin_left: 12,
-                                  margin_right: 12,
-                                  margin_bottom: 12 });
+        this.grid = new Gtk.Grid({ orientation: Gtk.Orientation.VERTICAL,
+                                   column_spacing: 6,
+                                   row_spacing: 6,
+                                   margin_left: 12,
+                                   margin_right: 12,
+                                   margin_bottom: 12 });
       	let contentArea = this.widget.get_content_area();
-        contentArea.pack_start(grid, true, true, 0);
+        contentArea.pack_start(this.grid, true, true, 0);
+        
+        this._spinner = new Gtk.Spinner ({ active: true, // WHY WON"T YOU SPIN??? OH WHY!
+                                           halign: Gtk.Align.CENTER });
+        this._spinner.set_size_request(86, 86);
+        this._swSpinner = new Gtk.ScrolledWindow({ shadow_type: Gtk.ShadowType.IN,
+                                                   margin_bottom: 3,
+                                                   hexpand: true }); 
+        this._swSpinner.set_size_request(-1, 250);
+        this._swSpinner.add_with_viewport(this._spinner);
+        this.grid.attach(this._swSpinner, 0, 0, 3, 1);
 
-        let sw = new Gtk.ScrolledWindow({ shadow_type: Gtk.ShadowType.IN,
-                                          margin_bottom: 3,
-                                          hexpand: true, }); // Add with viewport so can switch from spinner to liststore. I don't know how to do this switching thing! maybe I need two functions for the building & rebuilding the UI?
-        sw.set_size_request(-1, 250);
-        grid.attach(sw, 0, 0, 3, 1);
+        this.sw = new Gtk.ScrolledWindow({ shadow_type: Gtk.ShadowType.IN,
+                                           margin_bottom: 3,
+                                           hexpand: true });
+        
+        this.sw.set_size_request(-1, 250);
         rows++;
 
         this.model = Gtk.ListStore.new(
@@ -115,7 +125,7 @@ const SharingDialog = new Lang.Class({
                                        hexpand: true });
         this.tree.set_model(this.model);
         this.tree.show();
-        sw.add(this.tree);
+        this.sw.add(this.tree);
 
         this._viewCol = new Gtk.TreeViewColumn();
         this.tree.append_column(this._viewCol);
@@ -126,7 +136,8 @@ const SharingDialog = new Lang.Class({
         this._viewCol.pack_start(this._rendererText, true);
         this._viewCol.add_attribute(this._rendererText,
                                     'text', SharingDialogColumns.NAME);
-
+       
+        
         // Role column
         this._rendererDetail = new GdPrivate.StyledTextRenderer({ xpad: 16 });
         this._rendererDetail.add_class('dim-label');
@@ -140,19 +151,19 @@ const SharingDialog = new Lang.Class({
                                             use_markup: true,
                                             hexpand: false });
         this._docSharing.get_style_context().add_class('dim-label');
-        grid.add(this._docSharing);
+        this.grid.add(this._docSharing);
         rows++;
 
-        this._permissionLabel = this.docPrivate; // Label for permission setting
+        this._permissionLabel = this.docPrivate; 
         this._setting = new Gtk.Label({ label: _(this._permissionLabel),
                                         halign: Gtk.Align.START,
                                         hexpand: false });
-        grid.add(this._setting);
+        this.grid.add(this._setting);
 
         this._changePermission = new Gtk.Button({ label: _("Change"), // Label for permission change in Sharing dialog
                                                   halign: Gtk.Align.START });
         this._changePermission.connect("clicked", Lang.bind(this, this._permissionPopUp));
-        grid.attach(this._changePermission, 2, rows, 1, 1);
+        this.grid.attach(this._changePermission, 2, rows, 1, 1);
         rows++;
 
         this._add = new Gtk.Label ({ label: '<b>' +  _("Add people") + '</b>', // Label for widget group used for adding new contacts
@@ -160,7 +171,7 @@ const SharingDialog = new Lang.Class({
                                      use_markup: true,
                                      hexpand: false });
         this._add.get_style_context().add_class('dim-label');
-        grid.add(this._add);
+        this.grid.add(this._add);
         rows++;
 
         this._addContact = new Gtk.Entry({ placeholder_text: _("Enter an email address"), // Editable text in entry field
@@ -173,7 +184,7 @@ const SharingDialog = new Lang.Class({
                 this._saveShare.sensitive = hasText;
                 this._comboBoxText.sensitive = hasText;
             }));
-        grid.add(this._addContact);
+        this.grid.add(this._addContact);
 
         this._comboBoxText = new Gtk.ComboBoxText({ sensitive: false });
         let combo = [_("Can edit"), _("Can view") ]; // Permission setting labels in combobox
@@ -181,7 +192,7 @@ const SharingDialog = new Lang.Class({
             this._comboBoxText.append_text(combo[i]);
 
         this._comboBoxText.set_active(0);
-        grid.attach_next_to(this._comboBoxText, this._addContact, 1, 1, 1);
+        this.grid.attach_next_to(this._comboBoxText, this._addContact, 1, 1, 1);
 
       /* There is no API for this
         this._notify = new Gtk.CheckButton({ label: _("Notify contact via gmail") }); // Label for checkbutton
@@ -194,7 +205,7 @@ const SharingDialog = new Lang.Class({
         this._saveShare = new Gtk.Button({ label: _("Add"),
                                            sensitive: false });
         this._saveShare.connect ('clicked', Lang.bind(this, this._onAddClicked));
-        grid.attach_next_to(this._saveShare, this._comboBoxText, 1, 1, 1);
+        this.grid.attach_next_to(this._saveShare, this._comboBoxText, 1, 1, 1);
 
         this.widget.show_all();
     },
@@ -283,7 +294,7 @@ const SharingDialog = new Lang.Class({
 	            } catch(e) {
                     log("Error getting ACL Feed " + e.message);
 	            }
-         }));
+            }));
     },
 
      // Get each entry (person) from the feed, and get the scope for each person, and then store the emails and values in an array
@@ -295,29 +306,40 @@ const SharingDialog = new Lang.Class({
         entries.forEach(Lang.bind(this,
             function(entry) {
                 let [type, value] = entry.get_scope();
+                log('type'); 
+                log(type);
+                log('value');
+                log(value);
                 let role = entry.get_role();
+                log('role');
+                log(role);
                 if(value != null) {
                     values.push({ name: value, role: this._getUserRoleString(role) });                   
                 }
                 else if(value == null) {
-                    this._setting.set_text("Public"); 
+                    this.docPrivate = "Public";
+                    this._setting.set_text(this.docPrivate); // Text for document permission label
                     if(role == 'writer')
                         this.pubEdit = true; 
                 }
              }));
 
          // Set values in the treemodel
-         values.forEach(Lang.bind (this,
-             function(value) {
+        values.forEach(Lang.bind (this,
+            function(value) {
                  let iter = this.model.append();
                  this.model.set(iter,
                      [ SharingDialogColumns.NAME,
                        SharingDialogColumns.ROLE ],
                      [ value.name, value.role ])
-        }));
-        this.showTree = true;
+            }));
+        this.grid.attach(this.sw, 0, 0, 3, 1);
+        this.sw.set_visible(false);
+        this._swSpinner.destroy();
+        this.sw.set_visible(true);
         if(this.docPrivate == "")
-          this._setting.set_text("Private");   
+            this.docPrivate = "Private";
+            this._setting.set_text(this.docPrivate);  // Text for document permission label 
     },
 
     // Get the roles, and make a new array containing strings that start with capital letters
@@ -362,7 +384,7 @@ const SharingDialog = new Lang.Class({
                             [ newContact.name,
                             roleString]);
                             this._addContact.set_text("");
-                            this._addContact.set_placeholder_text("Enter an email address");       
+                            this._addContact.set_placeholder_text("Enter an email address"); // Editable text in entry field      
                         } catch(e) {
                             log("Error inserting new ACL rule " + e.message);
 		         		}
@@ -382,7 +404,6 @@ const SharingDialog = new Lang.Class({
             let service = new GData.DocumentsService({ authorizer: authorizer });
 
             let docAccessRule = this._getDocumentPermission();
-            log(docAccessRule);
             let newDocRole = this._getDocumentRole();
             let entries = this.feed.get_entries();
             let values = [];
@@ -408,7 +429,7 @@ const SharingDialog = new Lang.Class({
                             
                         }
                         count++;  
-                }));
+                    }));
             if(flag == "" && docAccessRule == GData.ACCESS_SCOPE_DEFAULT)
                 flag = "addPub";
  
@@ -429,7 +450,7 @@ const SharingDialog = new Lang.Class({
                                 } catch(e) {
                                     log("Error inserting new ACL scope for document" + e.message);
 		         			    }
-                        }));
+                            }));
                 }
              
                 if(flag == "changePub") { 
@@ -445,7 +466,7 @@ const SharingDialog = new Lang.Class({
                                     } catch(e) {
                                         log("Error updating ACL scope for document" + e.message);
 		         			        }
-                        }));
+                            }));
                 }
                       
                 if(flag == "deletePub") { 
@@ -459,22 +480,8 @@ const SharingDialog = new Lang.Class({
                             } catch(e) {
                                 log("Error deleting ACL scope for document" + e.message);
 		         			}
-                    }));
+                        }));
                 }
-               /* let entr = this.feed.get_entries();//weird test
-                log("test");
-                log(entr[0]);
-                let accessRule = entr[2];
-                accessRule.set_role(GData.DOCUMENTS_ACCESS_ROLE_WRITER);
-                        service.update_entry_async(service.get_primary_authorization_domain(), 
-                        accessRule, null, Lang.bind(this,
-                        function(service, res) {
-                            try {
-                                let insertedAccessRule = service.update_entry_finish(res);
-                            } catch(e) {
-                                log("Error deleting ACL scope for document" + e.message);
-		         			}
-                    }));*/
         }    
     },
 
@@ -510,24 +517,19 @@ const SharingDialog = new Lang.Class({
             this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_WRITER;
         }
     },
-   
-    _getDocPrivateString: function() {//Make this useful by replacing an empty label with a docPrivate label after the permissions get here from Google.
-        return this.docPrivate;
-    },
 
     _getDocumentRole: function() {
         let newDocRole = null;
             if (this._check.get_active()) 
                 this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_WRITER;
-                
-            
+                           
             else
                 this.newDocRole = GData.DOCUMENTS_ACCESS_ROLE_READER;
 
         return this.newDocRole;
     },
 
-    _setDoc: function() {
+    _setDoc: function() { //also useless
         this.changed = true;
         log(this.changed);
     },
@@ -539,13 +541,13 @@ const SharingDialog = new Lang.Class({
     },
 
     _showErrorDialog: function () {
-        this._errorDialog = new Gtk.MessageDialog ({
-            transient_for: this.widget,
-            modal: true,
-            destroy_with_parent: true,
-            buttons: Gtk.ButtonsType.OK,
-            message_type: Gtk.MessageType.WARNING,
-            text: "Email address is not valid" }); // Text for error dialog for invalid email address entered
+        this._errorDialog = new Gtk.MessageDialog ({ transient_for: this.widget,
+                                                     modal: true,
+                                                     destroy_with_parent: true,
+                                                     buttons: Gtk.ButtonsType.OK,
+                                                     message_type: Gtk.MessageType.WARNING,
+                                                     text: "Email address is not valid" 
+                                                     /*Text for error dialog for invalid email address entered*/}); 
 
         this._errorDialog.connect ('response', Lang.bind(this, this._closeErrorDialog));
         this._errorDialog.show();
@@ -553,14 +555,6 @@ const SharingDialog = new Lang.Class({
     
     _closeErrorDialog: function() {
         this._errorDialog.destroy();
-    },
-
-    _getAccountName: function() {//need to implement mtaching owner of document name against goa email address
-        let source = Global.sourceManager.getItemById(this.resourceUrn);
-
-        let authorizer = new GData.GoaAuthorizer({ goa_object: source.object });
-
-        log(authorizer);
-   }
+    }
 });
 
