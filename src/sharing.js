@@ -66,15 +66,15 @@ const SharingDialog = new Lang.Class({
     _init: function() {
         let urn = Global.selectionController.getSelection();
         let doc = Global.documentManager.getItemById(urn);
-        let rows = 0;
-
         this.identifier = doc.identifier;
         this.resourceUrn = doc.resourceUrn;
-        this.feed = null;
-        this.entry = null;
+        this.wasClicked = "";
         this.docPrivate = "";
-        this.pubEdit = false;
+        this.entry = null;
+        this.feed = null;       
         let newPub = false;
+        this.pubEdit = false;
+        let rows = 0;
         this.showTree = false;
         this._createGDataEntry();
         let toplevel = Global.application.get_windows()[0];
@@ -229,26 +229,39 @@ const SharingDialog = new Lang.Class({
                                        margin_right: 24,
                                        margin_bottom: 12 });
 
-        this.button1 = new Gtk.RadioButton ({ label: _("Private")}); // Label for radiobutton that sets doc permission to private
+        this.button1 = new Gtk.RadioButton({ label: _("Private")});
+        // Label for radiobutton that sets doc permission to private 
+        this.button1.get_style_context().add_class('dim-label');
         this.button1.connect('clicked', Lang.bind (this, this._setDoc));
         popUpGrid.attach(this.button1, 0, 2, 1, 1);
         this.button2 =  new Gtk.RadioButton({ label: _("Public"),  // Label for radiobutton that sets doc permission to public
-                                              group: this.button1 });       
+                                              group: this.button1 });
+        this.button2.get_style_context().add_class('dim-label');       
         this.button2.connect('clicked', Lang.bind (this, this._setDoc));
-        if(this.docPrivate == "Public") {
+
+        if (this.docPrivate == "Public" ) {
             this.button2.set_active(true);
         }
+
         popUpGrid.attach(this.button2, 0, 3, 1, 1);
 
-        this._check = new Gtk.CheckButton({ label: _("Can edit")});
-        if(this.pubEdit == false)
+        this._check = new Gtk.CheckButton({ label: _("Can Edit"),
+                                            sensitive: false });//editing here now
+        this._check.get_style_context().add_class('dim-label');
+
+        if (this.pubEdit == false) {
             this._check.set_active(false);
-        else
+        }
+
+        else {
             this._check.set_active(true);
+            this._check.set_sensitive(true);
+        }
+
         this._check.connect ("toggled", Lang.bind (this, this._setDocumentRole));
         popUpGrid.attach(this._check, 0, 5, 1, 1);
 
-        this._close = new Gtk.Button({ label: _("Done") }); // Label for Done button permissions popup window
+        this._close = new Gtk.Button({ label: _("Done") }); // Label for Done button permissions popup window 
         this._close.connect('clicked', Lang.bind(this,
             function() {             
                 this._sendNewDocumentRule();
@@ -308,13 +321,15 @@ const SharingDialog = new Lang.Class({
                 let [type, value] = entry.get_scope();
                 let role = entry.get_role();
 
-                if(value != null) {
+                if (value != null) {
                     values.push({ name: value, role: this._getUserRoleString(role) });                   
                 }
-                else if(value == null) {
+
+                else if (value == null) {
                     this.docPrivate = "Public";
                     this._setting.set_text(this.docPrivate); // Text for document permission label
-                    if(role == 'writer')
+
+                    if (role == 'writer')
                         this.pubEdit = true; 
                 }
              }));
@@ -333,20 +348,21 @@ const SharingDialog = new Lang.Class({
         this.sw.set_visible(false);
         this._swSpinner.destroy();
         this.sw.set_visible(true);
-        if(this.docPrivate == "")
+
+        if (this.docPrivate == "")
             this.docPrivate = "Private";
             this._setting.set_text(this.docPrivate);  // Text for document permission label 
     },
 
     // Get the roles, and make a new array containing strings that start with capital letters
     _getUserRoleString: function(role) {
-        if(role.charAt(0) == 'o')
+        if (role.charAt(0) == 'o')
             return _("Owner"); // Owner permission for document user listed in treeview
 
-        if(role.charAt(0) == 'w')
+        if (role.charAt(0) == 'w')
             return _("Writer"); // Writer permission for document user listed in treeview
 
-        if(role.charAt(0) == 'r')
+        if (role.charAt(0) == 'r')
             return _("Reader"); // Reader permission for document user listed in treeview
 
         return '';
@@ -354,7 +370,7 @@ const SharingDialog = new Lang.Class({
 
     // Send the new contact and its permissions to Google Docs
     _onAddClicked: function() {
-        if(this._isValidEmail()) {
+        if (this._isValidEmail()) {
             let source = Global.sourceManager.getItemById(this.resourceUrn);
 
             let authorizer = new GData.GoaAuthorizer({ goa_object: source.object });
@@ -389,6 +405,7 @@ const SharingDialog = new Lang.Class({
                     }));
             
         }
+
         else {
            this._showErrorDialog(); 
         }
@@ -414,23 +431,24 @@ const SharingDialog = new Lang.Class({
                         let [type, value] = individualEntry.get_scope();
                         let role = individualEntry.get_role();
 
-                        if(type == "default") {
+                        if (type == "default") {
                             arrIndex = count;
-                            if(docAccessRule == GData.ACCESS_SCOPE_USER)
+                            if (docAccessRule == GData.ACCESS_SCOPE_USER)
                                 flag = "deletePub";
-                            else if(newDocRole != role)
+                            else if (newDocRole != role)
                                  flag = "changePub";
-                            
+                            else 
+                                flag = "doNotSend";                           
                         }
                         count++;  
                     }));
 
-            if(flag == "" && docAccessRule == GData.ACCESS_SCOPE_DEFAULT)
+            if (flag == "" && docAccessRule == GData.ACCESS_SCOPE_DEFAULT)
                 flag = "addPub";
  
-            if(flag != '') {
+            if (flag != '') {
       
-                if(flag == "addPub") { 
+                if (flag == "addPub") { 
                 // If we are making the doc public, send a new permission
                     let accessRule = new GData.AccessRule();
                     let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
@@ -448,7 +466,7 @@ const SharingDialog = new Lang.Class({
                             }));
                 }
              
-                if(flag == "changePub") { 
+                if (flag == "changePub") { 
                 // If we are changing the role, update the entry              
                     let accessRule = entries[arrIndex];
 
@@ -464,7 +482,7 @@ const SharingDialog = new Lang.Class({
                             }));
                 }
                       
-                if(flag == "deletePub") { 
+                if (flag == "deletePub") { 
                 // If we are changing the permission to private, delete the public entry.
                     let accessRule = entries[arrIndex];
 
@@ -528,8 +546,15 @@ const SharingDialog = new Lang.Class({
         return this.newDocRole;
     },
 
-    _setDoc: function() { //also useless
-        this.changed = true;
+    _setDoc: function() { // GJS is complaining about this but it works nonetheless 
+        if (this.button2.get_active()) {
+            this._check.set_sensitive(true);
+        }
+
+        else {
+            this._check.set_active(false);
+            this._check.set_sensitive(false);
+        }   
     },
     
     _isValidEmail: function() { 
