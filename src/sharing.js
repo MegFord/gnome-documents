@@ -68,9 +68,9 @@ const SharingDialog = new Lang.Class({
         let doc = Global.documentManager.getItemById(urn);
         this.identifier = doc.identifier;
         this.resourceUrn = doc.resourceUrn;
-        this.wasClicked = "";
         this.docPrivate = "";
         this.entry = null;
+        this.errorStr ="";
         this.feed = null;       
         let newPub = false;
         this.pubEdit = false;
@@ -239,10 +239,6 @@ const SharingDialog = new Lang.Class({
         this.button2.get_style_context().add_class('dim-label');       
         this.button2.connect('clicked', Lang.bind (this, this._setDoc));
 
-        if (this.docPrivate == "Public" ) {
-            this.button2.set_active(true);
-        }
-
         popUpGrid.attach(this.button2, 0, 3, 1, 1);
 
         this._check = new Gtk.CheckButton({ label: _("Can Edit"),
@@ -255,6 +251,10 @@ const SharingDialog = new Lang.Class({
 
         else {
             this._check.set_active(true);
+        }
+    
+        if (this.docPrivate == "Public" ) {
+            this.button2.set_active(true);
             this._check.set_sensitive(true);
         }
 
@@ -401,13 +401,16 @@ const SharingDialog = new Lang.Class({
                             this._addContact.set_placeholder_text("Enter an email address"); // Editable text in entry field      
                         } catch(e) {
                             log("Error inserting new ACL rule " + e.message);
+                            this.errorStr = "The document was not updated";
+                            this._showErrorDialog(errorStr);
 		         		}
                     }));
             
         }
 
         else {
-           this._showErrorDialog(); 
+           this.errorStr = "Not a valid email address";
+           this._showErrorDialog(this.errorStr); 
         }
     },
 
@@ -461,7 +464,9 @@ const SharingDialog = new Lang.Class({
                                 try {
                                     let insertedAccessRule = service.insert_entry_finish(res);
                                 } catch(e) {
-                                    log("Error inserting new ACL scope for document" + e.message);
+                                    log("Error inserting new ACL scope for document " + e.message);
+                                    this.errorStr = "The document was not updated";
+                                    this._showErrorDialog(this.errorStr);
 		         			    }
                             }));
                 }
@@ -477,7 +482,9 @@ const SharingDialog = new Lang.Class({
                                     try {
                                         let updatedAccessRule = service.update_entry_finish(res);
                                     } catch(e) {
-                                        log("Error updating ACL scope for document" + e.message);
+                                        log("Error updating ACL scope for document " + e.message);
+                                        this.errorStr = "The document was not updated";
+                                        this._showErrorDialog(this.errorStr);
 		         			        }
                             }));
                 }
@@ -492,7 +499,9 @@ const SharingDialog = new Lang.Class({
                             try {
                                 let afterDeletedAccessRule = service.delete_entry_finish(res);
                             } catch(e) {
-                                log("Error deleting ACL scope for document" + e.message);
+                                log("Error deleting ACL scope for document  " + e.message);
+                                this.errorStr = "The document was not updated";
+                                this._showErrorDialog(this.errorStr);
 		         			}
                         }));
                 }
@@ -563,13 +572,14 @@ const SharingDialog = new Lang.Class({
         return /^([^\x00-\x20\x22\x28\x29\x2c\x2e\x3a-\x3c\x3e\x40\x5b-\x5d\x7f-\xff]+|\x22([^\x0d\x22\x5c\x80-\xff]|\x5c[\x00-\x7f])*\x22)(\x2e([^\x00-\x20\x22\x28\x29\x2c\x2e\x3a-\x3c\x3e\x40\x5b-\x5d\x7f-\xff]+|\x22([^\x0d\x22\x5c\x80-\xff]|\x5c[\x00-\x7f])*\x22))*\x40([^\x00-\x20\x22\x28\x29\x2c\x2e\x3a-\x3c\x3e\x40\x5b-\x5d\x7f-\xff]+|\x5b([^\x0d\x5b-\x5d\x80-\xff]|\x5c[\x00-\x7f])*\x5d)(\x2e([^\x00-\x20\x22\x28\x29\x2c\x2e\x3a-\x3c\x3e\x40\x5b-\x5d\x7f-\xff]+|\x5b([^\x0d\x5b-\x5d\x80-\xff]|\x5c[\x00-\x7f])*\x5d))*$/.test(emailString);
     },
 
-    _showErrorDialog: function () {
+    _showErrorDialog: function (errorStr) {
+        let msg = this.errorStr;
         this._errorDialog = new Gtk.MessageDialog ({ transient_for: this.widget,
                                                      modal: true,
                                                      destroy_with_parent: true,
                                                      buttons: Gtk.ButtonsType.OK,
                                                      message_type: Gtk.MessageType.WARNING,
-                                                     text: "Email address is not valid" 
+                                                     text: msg 
                                                      /*Text for error dialog for invalid email address entered*/}); 
 
         this._errorDialog.connect ('response', Lang.bind(this, this._closeErrorDialog));
