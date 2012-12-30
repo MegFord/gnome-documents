@@ -43,6 +43,7 @@ const Gtk = imports.gi.Gtk;
 const GtkClutter = imports.gi.GtkClutter;
 const _ = imports.gettext.gettext;
 
+const Application = imports.application;
 const Documents = imports.documents;
 const Global = imports.global;
 const Manager = imports.manager;
@@ -64,6 +65,9 @@ const SharingDialog = new Lang.Class({
     Name: 'SharingDialog',
 
     _init: function() {
+        let accountName = Application.goaClient.get_account();
+        let identity = accountName.get_identity();       
+        log(identity);
         let urn = Global.selectionController.getSelection();
         let doc = Global.documentManager.getItemById(urn);
         this.identifier = doc.identifier;
@@ -99,7 +103,7 @@ const SharingDialog = new Lang.Class({
       	let contentArea = this.widget.get_content_area();
         contentArea.pack_start(this.grid, true, true, 0);
         
-        this._spinner = new Gtk.Spinner ({ active: true, // WHY WON"T YOU SPIN??? OH WHY!
+        this._spinner = new Gtk.Spinner ({ active: false, // WHY WON"T YOU SPIN??? OH WHY!
                                            halign: Gtk.Align.CENTER });
         this._spinner.set_size_request(86, 86);
         this._swSpinner = new Gtk.ScrolledWindow({ shadow_type: Gtk.ShadowType.IN,
@@ -108,6 +112,9 @@ const SharingDialog = new Lang.Class({
         this._swSpinner.set_size_request(-1, 250);
         this._swSpinner.add_with_viewport(this._spinner);
         this.grid.attach(this._swSpinner, 0, 0, 3, 1);
+        this._spinner.start();
+        if (this._spinner.active == true)
+            log("active but not spinning");
 
         this.sw = new Gtk.ScrolledWindow({ shadow_type: Gtk.ShadowType.IN,
                                            margin_bottom: 3,
@@ -161,6 +168,7 @@ const SharingDialog = new Lang.Class({
         this.grid.add(this._setting);
 
         this._changePermission = new Gtk.Button({ label: _("Change"), // Label for permission change in Sharing dialog
+                                                  sensitive: false,
                                                   halign: Gtk.Align.START });
         this._changePermission.connect("clicked", Lang.bind(this, this._permissionPopUp));
         this.grid.attach(this._changePermission, 2, rows, 1, 1);
@@ -217,33 +225,36 @@ const SharingDialog = new Lang.Class({
                                              destroy_with_parent: true,
                                              default_width: 400,
                                              default_height: 600,
+                                             margin_top: 5,
+                                             margin_left: 12,
+                                             margin_right: 12, 
                                              hexpand: false,
                                              title: _("Document Permissions") });
+        this.popUpWindow.get_style_context().add_class('documents-dropdown');
 
         let popUpGrid = new Gtk.Grid({ orientation: Gtk.Orientation.VERTICAL,
                                        column_homogeneous: true,
                                        halign: Gtk.Align.CENTER,
-                                       row_spacing: 12,
-                                       column_spacing: 24,
-                                       margin_left: 24,
-                                       margin_right: 24,
-                                       margin_bottom: 12 });
+                                       row_spacing: 10 });
 
-        this.button1 = new Gtk.RadioButton({ label: _("Private")});
-        // Label for radiobutton that sets doc permission to private 
-        this.button1.get_style_context().add_class('dim-label');
+        this.button1 = new Gtk.RadioButton({ label: _("Private") }); // Label for radiobutton that sets doc permission to private
+
         this.button1.connect('clicked', Lang.bind (this, this._setDoc));
-        popUpGrid.attach(this.button1, 0, 2, 1, 1);
-        this.button2 =  new Gtk.RadioButton({ label: _("Public"),  // Label for radiobutton that sets doc permission to public
-                                              group: this.button1 });
-        this.button2.get_style_context().add_class('dim-label');       
+        popUpGrid.attach(this.button1, 0, 2, 2, 1);
+
+       // this._button1Label.get_style_context().add_class('dim-label');
+
+
+        this.button2 =  new Gtk.RadioButton({ group: this.button1, label: _("Public") });
+       // this.button2.get_style_context().add_class('dim-label');       
         this.button2.connect('clicked', Lang.bind (this, this._setDoc));
 
-        popUpGrid.attach(this.button2, 0, 3, 1, 1);
+        popUpGrid.attach(this.button2, 0, 3, 2, 1);
 
-        this._check = new Gtk.CheckButton({ label: _("Can Edit"),
-                                            sensitive: false });//editing here now
-        this._check.get_style_context().add_class('dim-label');
+        this._check = new Gtk.CheckButton({ label: _("Can edit"),
+                                            sensitive: false,
+                                            margin_left: 20 });//editing here now
+       // this._check.get_style_context().add_class('dim-label');
 
         if (this.pubEdit == false) {
             this._check.set_active(false);
@@ -259,19 +270,18 @@ const SharingDialog = new Lang.Class({
         }
 
         this._check.connect ("toggled", Lang.bind (this, this._setDocumentRole));
-        popUpGrid.attach(this._check, 0, 5, 1, 1);
+        popUpGrid.attach(this._check, 0, 4, 3, 1);
 
-        this._close = new Gtk.Button({ label: _("Done") }); // Label for Done button permissions popup window 
+        this._close = new Gtk.Button({ label: _("Done") });  // Label for Done button permissions popup window 
         this._close.connect('clicked', Lang.bind(this,
             function() {             
                 this._sendNewDocumentRule();
                 this.popUpWindow.destroy();
             }));
 
-        popUpGrid.attach(this._close, 0, 6, 1, 1);
-
+        popUpGrid.attach(this._close, 2, 5, 1, 1);
         let popUpContentArea = this.popUpWindow.get_content_area();
-        popUpContentArea.pack_start(popUpGrid, true, true, 2);
+        popUpContentArea.pack_start(popUpGrid, true, true, 3);
         this.popUpWindow.show_all();
     },
 
@@ -281,12 +291,9 @@ const SharingDialog = new Lang.Class({
 
         let authorizer = new GData.GoaAuthorizer({ goa_object: source.object });
         let service = new GData.DocumentsService({ authorizer: authorizer });
-
         // Query the service for the entry related to the doc
-        service.query_single_entry_async
-            (service.get_primary_authorization_domain(),
-            this.identifier, null,
-            GData.DocumentsText, null, Lang.bind(this,
+        service.query_single_entry_async(service.get_primary_authorization_domain(),
+            this.identifier, null, GData.DocumentsText, null, Lang.bind(this,
                 function(object, res) {
                     try {
                         this.entry = object.query_single_entry_finish(res);
@@ -319,16 +326,21 @@ const SharingDialog = new Lang.Class({
         entries.forEach(Lang.bind(this,
             function(entry) {
                 let [type, value] = entry.get_scope();
+                log("type");
+                log(type);
+                log("value");
+                log(value);
                 let role = entry.get_role();
+                log(role);
 
                 if (value != null) {
                     values.push({ name: value, role: this._getUserRoleString(role) });                   
                 }
 
                 else if (value == null) {
-                    this.docPrivate = "Public";
+                    if(role != 'none')
+                        this.docPrivate = "Public";
                     this._setting.set_text(this.docPrivate); // Text for document permission label
-
                     if (role == 'writer')
                         this.pubEdit = true; 
                 }
@@ -351,7 +363,8 @@ const SharingDialog = new Lang.Class({
 
         if (this.docPrivate == "")
             this.docPrivate = "Private";
-            this._setting.set_text(this.docPrivate);  // Text for document permission label 
+            this._setting.set_text(this.docPrivate);  // Text for document permission label
+            this._changePermission.set_sensitive(true); 
     },
 
     // Get the roles, and make a new array containing strings that start with capital letters
@@ -438,8 +451,10 @@ const SharingDialog = new Lang.Class({
                             arrIndex = count;
                             if (docAccessRule == GData.ACCESS_SCOPE_USER)
                                 flag = "deletePub";
-                            else if (newDocRole != role)
+                            else if (newDocRole != role && role != 'none')
                                  flag = "changePub";
+                            else if (role == 'none')
+                                 flag = "deleteLinkToPub";
                             else 
                                 flag = "doNotSend";                           
                         }
@@ -504,6 +519,43 @@ const SharingDialog = new Lang.Class({
                                 this._showErrorDialog(this.errorStr);
 		         			}
                         }));
+                }
+                 
+                if (flag == "deleteLinkToPub") {
+                   // Workaround if the doc is shared with link: step 1 delete shared with link permission.
+                   let accessRule = entries[arrIndex];
+
+                    service.delete_entry_async(service.get_primary_authorization_domain(), 
+                    accessRule, null, Lang.bind(this,
+                        function(service, res) {
+                            try {
+                                let afterDeletedAccessRule = service.delete_entry_finish(res);
+                            } catch(e) {
+                                log("Error deleting ACL scope for document  " + e.message);
+                                this.errorStr = "The document was not updated";
+                                this._showErrorDialog(this.errorStr);
+		         			}
+                        }));
+                 }
+
+                 if (flag == "deleteLinkToPub") {
+                    // Workaround if the doc is shared with link: step 2 add the new public permisssion.
+                    let newAccessRule = new GData.AccessRule();
+                    let aclLink = this.entry.look_up_link(GData.LINK_ACCESS_CONTROL_LIST);
+
+                    newAccessRule.set_scope(docAccessRule, null);
+                    newAccessRule.set_role(newDocRole);
+                    service.insert_entry_async(service.get_primary_authorization_domain(),
+                        aclLink.get_uri(), newAccessRule, null, Lang.bind(this,
+                            function(service, res) {
+                                try {
+                                    let insertedAccessRule = service.insert_entry_finish(res);
+                                } catch(e) {
+                                    log("Error inserting new ACL scope for document " + e.message);
+                                    this.errorStr = "The document was not updated";
+                                    this._showErrorDialog(this.errorStr);
+		         			    }
+                            }));
                 }
         }    
     },
